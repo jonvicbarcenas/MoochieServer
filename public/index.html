@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Upload Service</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .form-container {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .error {
+            color: red;
+            margin-top: 5px;
+        }
+        .image-container {
+            margin-top: 20px;
+        }
+        .image-card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .image-card img {
+            max-width: 100px;
+            max-height: 100px;
+            margin-right: 20px;
+        }
+        .image-info {
+            flex-grow: 1;
+        }
+        .search-container {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Upload Service</h1>
+    
+    <div class="form-container">
+        <h2>Upload Image</h2>
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="code">4-Digit Code:</label>
+                <input type="text" id="code" name="code" pattern="[0-9]{4}" required placeholder="Enter a 4-digit code">
+                <div class="error" id="codeError"></div>
+            </div>
+            <div class="form-group">
+                <label for="image">Select Image:</label>
+                <input type="file" id="image" name="image" accept="image/*" required>
+                <div class="error" id="imageError"></div>
+            </div>
+            <button type="submit">Upload Image</button>
+        </form>
+        <div id="uploadResult"></div>
+    </div>
+    
+    <div class="search-container">
+        <h2>Find Image by Code</h2>
+        <div class="form-group">
+            <label for="searchCode">Enter 4-Digit Code:</label>
+            <input type="text" id="searchCode" pattern="[0-9]{4}" placeholder="Enter a 4-digit code">
+            <button id="searchButton">Search</button>
+        </div>
+        <div id="searchResult"></div>
+    </div>
+    
+    <h2>All Images</h2>
+    <div id="imagesList" class="image-container"></div>
+
+    <script>
+        // Function to validate the 4-digit code
+        function validateCode(code) {
+            return /^\d{4}$/.test(code);
+        }
+
+        // Handle form submission
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const codeInput = document.getElementById('code');
+            const imageInput = document.getElementById('image');
+            const code = codeInput.value;
+            const file = imageInput.files[0];
+            
+            // Reset errors
+            document.getElementById('codeError').textContent = '';
+            document.getElementById('imageError').textContent = '';
+            document.getElementById('uploadResult').textContent = '';
+            
+            // Validate code
+            if (!validateCode(code)) {
+                document.getElementById('codeError').textContent = 'Please enter a valid 4-digit code';
+                return;
+            }
+            
+            // Validate image
+            if (!file) {
+                document.getElementById('imageError').textContent = 'Please select an image file';
+                return;
+            }
+            
+            // Create FormData and append inputs
+            const formData = new FormData();
+            formData.append('code', code);
+            formData.append('image', file);
+            
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('uploadResult').innerHTML = `
+                        <p>Image uploaded successfully!</p>
+                        <p>Code: ${result.code}</p>
+                        <p>URL: ${result.imageUrl}</p>
+                        <img src="${result.imageUrl}" alt="Uploaded image" style="max-width: 300px;">
+                    `;
+                    
+                    // Reset form
+                    document.getElementById('uploadForm').reset();
+                    
+                    // Refresh images list
+                    loadAllImages();
+                } else {
+                    document.getElementById('uploadResult').textContent = `Error: ${result.error}`;
+                }
+            } catch (error) {
+                document.getElementById('uploadResult').textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // Search for an image by code
+        document.getElementById('searchButton').addEventListener('click', async function() {
+            const code = document.getElementById('searchCode').value;
+            const searchResult = document.getElementById('searchResult');
+            
+            searchResult.innerHTML = '';
+            
+            if (!validateCode(code)) {
+                searchResult.textContent = 'Please enter a valid 4-digit code';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/images/${code}`);
+                const result = await response.json();
+                
+                if (response.ok) {
+                    searchResult.innerHTML = `
+                        <div class="image-card">
+                            <img src="${result.imageUrl}" alt="Image ${result.code}">
+                            <div class="image-info">
+                                <p><strong>Code:</strong> ${result.code}</p>
+                                <p><strong>URL:</strong> ${result.imageUrl}</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    searchResult.textContent = `Error: ${result.error}`;
+                }
+            } catch (error) {
+                searchResult.textContent = `Error: ${error.message}`;
+            }
+        });
+        
+        // Load all images
+        async function loadAllImages() {
+            const imagesListContainer = document.getElementById('imagesList');
+            
+            try {
+                const response = await fetch('/api/images');
+                const images = await response.json();
+                
+                imagesListContainer.innerHTML = '';
+                
+                if (images.length === 0) {
+                    imagesListContainer.textContent = 'No images found.';
+                    return;
+                }
+                
+                images.forEach(image => {
+                    const imageCard = document.createElement('div');
+                    imageCard.className = 'image-card';
+                    imageCard.innerHTML = `
+                        <img src="${image.imageUrl}" alt="Image ${image.code}">
+                        <div class="image-info">
+                            <p><strong>Code:</strong> ${image.code}</p>
+                            <p><strong>URL:</strong> ${image.imageUrl}</p>
+                        </div>
+                    `;
+                    imagesListContainer.appendChild(imageCard);
+                });
+            } catch (error) {
+                imagesListContainer.textContent = `Error loading images: ${error.message}`;
+            }
+        }
+        
+        // Load images when page loads
+        window.addEventListener('load', loadAllImages);
+        
+        // Handle auto upload form submission
+        document.getElementById('autoUploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const imageInput = document.getElementById('autoImage');
+            const file = imageInput.files[0];
+            
+            // Reset errors
+            document.getElementById('autoImageError').textContent = '';
+            document.getElementById('autoUploadResult').textContent = '';
+            
+            // Validate image
+            if (!file) {
+                document.getElementById('autoImageError').textContent = 'Please select an image file';
+                return;
+            }
+            
+            // Create FormData and append inputs
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const response = await fetch('/api/upload/auto', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    document.getElementById('autoUploadResult').innerHTML = `
+                        <p>Image uploaded successfully!</p>
+                        <p>Generated Code: ${result.code}</p>
+                        <p>URL: ${result.imageUrl}</p>
+                        <img src="${result.imageUrl}" alt="Uploaded image" style="max-width: 300px;">
+                    `;
+                    
+                    // Reset form
+                    document.getElementById('autoUploadForm').reset();
+                    
+                    // Refresh images list
+                    loadAllImages();
+                } else {
+                    document.getElementById('autoUploadResult').textContent = `Error: ${result.error}`;
+                }
+            } catch (error) {
+                document.getElementById('autoUploadResult').textContent = `Error: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html> 
